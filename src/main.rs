@@ -1,8 +1,10 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
 use seahorse::{App, Command};
+
 use std::env;
 use std::str;
+use std::net::TcpStream;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -49,9 +51,15 @@ fn print_port_scan(ip: &str, start_port: usize, end_port: usize) {
 	println!("{:<15} Open", port);
     }
 }
-fn port_scan(_ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>> {
-
-    Ok([start_port, end_port].into())
+fn port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>> {
+    let mut res = vec![];
+    for port in start_port..(end_port+1) {
+	match TcpStream::connect(format!("{}:{}", ip, port)) {
+	    Ok(_) => res.push(port),
+	    Err(_) => continue,
+	};
+    }
+    Ok(res)
 }
 
 fn download_file(url: &str, dst: &str) {
