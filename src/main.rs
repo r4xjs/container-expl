@@ -48,7 +48,7 @@ fn main() -> Result<()> {
         .description(env!("CARGO_PKG_DESCRIPTION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .version(env!("CARGO_PKG_VERSION"))
-        .usage(format!("{} [args]", args[0]))
+        .usage(format!("{} [Commands]", args[0]))
         .command(
             Command::new("ip")
                 .description("Display network information about the interfaces")
