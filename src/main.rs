@@ -2,6 +2,7 @@ use interfaces::{Interface, Kind};
 use procfs::process;
 use seahorse::{App, Command};
 use std::env;
+use std::str;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -42,6 +43,21 @@ fn print_network_interfaces() -> Result<()> {
     Ok(())
 }
 
+fn print_port_scan(ip: &str, start_port: usize, end_port: usize) {
+    println!("--------------------\n{}:\n--------------------", ip);
+    for port in port_scan(ip, start_port, end_port).unwrap() {
+	println!("{:<15} Open", port);
+    }
+}
+fn port_scan(_ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>> {
+
+    Ok([start_port, end_port].into())
+}
+
+fn download_file(url: &str, dst: &str) {
+    println!("{} -> {}", url, dst);
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let app = App::new(env!("CARGO_PKG_NAME"))
@@ -62,7 +78,30 @@ fn main() -> Result<()> {
                 .action(|_| {
                     print_process_list().unwrap();
                 }),
-        );
+        )
+	.command(
+	    Command::new("scan")
+		.description("Scan target IP")
+		.usage("[IP] [StartPort] [EndPort]")
+		.action(|ctx| {
+		    let mut arg_iter = ctx.args.iter().take(3);
+		    let ip = arg_iter.next().unwrap();
+		    let start_port: usize = arg_iter.next().unwrap().parse().unwrap();
+		    let end_port: usize = arg_iter.next().unwrap().parse().unwrap();
+		    print_port_scan(ip, start_port, end_port);
+		})
+	)
+	.command(
+	    Command::new("wget")
+		.description("Download file")
+		.usage("[URL] [Destination File]")
+		.action(|ctx| {
+		    let mut arg_iter = ctx.args.iter().take(2);
+		    let url = arg_iter.next().unwrap();
+		    let dst = arg_iter.next().unwrap();
+		    download_file(url, dst);
+		})
+	);
     app.run(args);
 
     Ok(())

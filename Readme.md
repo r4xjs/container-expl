@@ -8,6 +8,7 @@ target/x86_64-unknown-linux-musl/release/container-expl
 # TODO
 - [X] ip command formating
 - [ ] port scanner command
+- [ ] better error handling
 - [ ] wget command
 - [ ] create release on www
 
