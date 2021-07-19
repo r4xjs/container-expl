@@ -27,11 +27,13 @@ fn print_process_list() -> Result<()> {
 
 fn print_network_interfaces() -> Result<()> {
     for iface in Interface::get_all()? {
-        println!("{}", &iface.name);
+        println!("{}:", &iface.name);
         for addr in &iface.addresses {
             match addr.kind {
                 Kind::Ipv4 | Kind::Ipv6 => {
-                    println!("{:?}", addr)
+		    if let (Some(ip_addr), Some(mask)) = (addr.addr, addr.mask) {
+			println!("\tIP: {:<40} Mask: {:<40}", ip_addr, mask)
+		    }
                 }
                 _ => continue,
             };
