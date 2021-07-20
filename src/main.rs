@@ -90,7 +90,7 @@ fn main() -> Result<()> {
 	.command(
 	    Command::new("scan")
 		.description("Scan target IP")
-		.usage("[IP] [StartPort] [EndPort]")
+		.usage("<IP> <StartPort> <EndPort>")
 		.action(|ctx| {
 		    let mut arg_iter = ctx.args.iter().take(3);
 		    let ip = arg_iter.next().unwrap();
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
 	.command(
 	    Command::new("wget")
 		.description("Download file")
-		.usage("[URL] [Destination File]")
+		.usage("<URL> <Destination File>")
 		.action(|ctx| {
 		    let mut arg_iter = ctx.args.iter().take(2);
 		    let url = arg_iter.next().unwrap();
