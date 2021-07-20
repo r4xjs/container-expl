@@ -1,10 +1,13 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
+use reqwest;
 use seahorse::{App, Command};
 
 use std::env;
-use std::str;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::net::TcpStream;
+use std::str;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -34,9 +37,9 @@ fn print_network_interfaces() -> Result<()> {
         for addr in &iface.addresses {
             match addr.kind {
                 Kind::Ipv4 | Kind::Ipv6 => {
-		    if let (Some(ip_addr), Some(mask)) = (addr.addr, addr.mask) {
-			println!("\tIP: {:<40} Mask: {:<40}", ip_addr, mask)
-		    }
+                    if let (Some(ip_addr), Some(mask)) = (addr.addr, addr.mask) {
+                        println!("\tIP: {:<40} Mask: {:<40}", ip_addr, mask)
+                    }
                 }
                 _ => continue,
             };
@@ -48,22 +51,28 @@ fn print_network_interfaces() -> Result<()> {
 fn print_port_scan(ip: &str, start_port: usize, end_port: usize) {
     println!("--------------------\n{}:\n--------------------", ip);
     for port in port_scan(ip, start_port, end_port).unwrap() {
-	println!("{:<15} Open", port);
+        println!("{:<15} Open", port);
     }
 }
 fn port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>> {
     let mut res = vec![];
-    for port in start_port..(end_port+1) {
-	match TcpStream::connect(format!("{}:{}", ip, port)) {
-	    Ok(_) => res.push(port),
-	    Err(_) => continue,
-	};
+    for port in start_port..(end_port + 1) {
+        match TcpStream::connect(format!("{}:{}", ip, port)) {
+            Ok(_) => res.push(port),
+            Err(_) => continue,
+        };
     }
     Ok(res)
 }
 
 fn download_file(url: &str, dst: &str) {
-    println!("{} -> {}", url, dst);
+    let resp = reqwest::blocking::get(url).expect(format!("can't open url: {}", url).as_ref());
+    let mut fd = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(dst)
+        .expect(format!("cant open file: {}", dst).as_ref());
+    fd.write(resp.bytes().unwrap().as_ref()).unwrap();
 }
 
 fn main() -> Result<()> {
@@ -87,29 +96,29 @@ fn main() -> Result<()> {
                     print_process_list().unwrap();
                 }),
         )
-	.command(
-	    Command::new("scan")
-		.description("Scan target IP")
-		.usage("<IP> <StartPort> <EndPort>")
-		.action(|ctx| {
-		    let mut arg_iter = ctx.args.iter().take(3);
-		    let ip = arg_iter.next().unwrap();
-		    let start_port: usize = arg_iter.next().unwrap().parse().unwrap();
-		    let end_port: usize = arg_iter.next().unwrap().parse().unwrap();
-		    print_port_scan(ip, start_port, end_port);
-		})
-	)
-	.command(
-	    Command::new("wget")
-		.description("Download file")
-		.usage("<URL> <Destination File>")
-		.action(|ctx| {
-		    let mut arg_iter = ctx.args.iter().take(2);
-		    let url = arg_iter.next().unwrap();
-		    let dst = arg_iter.next().unwrap();
-		    download_file(url, dst);
-		})
-	);
+        .command(
+            Command::new("scan")
+                .description("Scan target IP")
+                .usage("<IP> <StartPort> <EndPort>")
+                .action(|ctx| {
+                    let mut arg_iter = ctx.args.iter().take(3);
+                    let ip = arg_iter.next().unwrap();
+                    let start_port: usize = arg_iter.next().unwrap().parse().unwrap();
+                    let end_port: usize = arg_iter.next().unwrap().parse().unwrap();
+                    print_port_scan(ip, start_port, end_port);
+                }),
+        )
+        .command(
+            Command::new("wget")
+                .description("Download file")
+                .usage("<URL> <Destination File>")
+                .action(|ctx| {
+                    let mut arg_iter = ctx.args.iter().take(2);
+                    let url = arg_iter.next().unwrap();
+                    let dst = arg_iter.next().unwrap();
+                    download_file(url, dst);
+                }),
+        );
     app.run(args);
 
     Ok(())
