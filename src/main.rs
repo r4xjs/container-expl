@@ -1,11 +1,10 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
-use reqwest;
 use seahorse::{App, Command};
+use ureq;
 
 use std::env;
 use std::fs::OpenOptions;
-use std::io::Write;
 use std::net::TcpStream;
 use std::str;
 
@@ -66,13 +65,14 @@ fn port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>>
 }
 
 fn download_file(url: &str, dst: &str) {
-    let resp = reqwest::blocking::get(url).expect(format!("can't open url: {}", url).as_ref());
-    let mut fd = OpenOptions::new()
+    let resp = ureq::get(url).call().expect(format!("can't open url: {}", url).as_ref());
+    let mut reader = resp.into_reader();
+    let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .open(dst)
         .expect(format!("cant open file: {}", dst).as_ref());
-    fd.write(resp.bytes().unwrap().as_ref()).unwrap();
+    std::io::copy(&mut reader, &mut writer).expect(format!("cant write to file: {}", dst).as_ref());
 }
 
 fn main() -> Result<()> {
