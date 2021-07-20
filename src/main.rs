@@ -24,7 +24,7 @@ fn print_process_list() -> Result<()> {
             &proc.owner,
             &stat.pid,
             &stat.ppid,
-            &proc.cmdline()?.get(0).unwrap_or(&"".into())
+            &proc.cmdline()?.join(" ")
         );
     }
 
