@@ -104,6 +104,32 @@ fn tcp_listener(port: usize) {
     }
 }
 
+fn tcp_connect(ip: &str, port: usize) {
+    let mut socket = TcpStream::connect(format!("{}:{}", ip, port)).unwrap();
+
+    // start thread to read stdin
+    let mut socket2 = socket.try_clone().unwrap();
+    thread::spawn(move || {
+	loop {
+	    let mut buf = [0;1024];
+	    match std::io::stdin().read(&mut buf) {
+		Ok(0) | Err(_) => break,
+		Ok(num) => socket2.write(&buf[..num]).unwrap(),
+	    };
+	}
+    });
+    // read socket and print to stdout
+    loop {
+	let mut buf = [0;1024];
+	match socket.read(&mut buf) {
+	    Ok(0) | Err(_) => break,
+	    Ok(num) => std::io::stdout().write(&buf[..num]).unwrap(),
+	};
+    }
+}
+
+
+
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -156,6 +182,16 @@ fn main() -> Result<()> {
                 .action(|ctx| {
                     let port: usize = ctx.args[0].parse().unwrap();
 		    tcp_listener(port);
+                }),
+        )
+        .command(
+            Command::new("connect")
+                .description("TCP Connect to given IP and port")
+                .usage("<ip> <port>")
+                .action(|ctx| {
+                    let ip = &ctx.args[0];
+                    let port: usize = ctx.args[1].parse().unwrap();
+		    tcp_connect(ip, port);
                 }),
         );
 
