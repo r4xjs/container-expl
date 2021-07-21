@@ -5,8 +5,10 @@ use ureq;
 
 use std::env;
 use std::fs::OpenOptions;
-use std::net::TcpStream;
+use std::net::{TcpStream, TcpListener};
+use std::io::{Write, Read};
 use std::str;
+use std::thread;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -75,6 +77,34 @@ fn download_file(url: &str, dst: &str) {
     std::io::copy(&mut reader, &mut writer).expect(format!("cant write to file: {}", dst).as_ref());
 }
 
+fn tcp_listener(port: usize) {
+    let socket = TcpListener::bind(format!("0.0.0.0:{}", &port)).unwrap();
+    println!("Listen on 0.0.0.0:{}", &port);
+    let (mut stream, addr) = socket.accept().unwrap();
+    println!("Connection from {}", &addr);
+
+    // start thread to read stdin
+    let mut stream2 = stream.try_clone().unwrap();
+    thread::spawn(move || {
+	loop {
+	    let mut buf = [0;1024];
+	    match std::io::stdin().read(&mut buf) {
+		Ok(0) | Err(_) => break,
+		Ok(num) => stream2.write(&buf[..num]).unwrap(),
+	    };
+	}
+    });
+    // read socket and print to stdout
+    loop {
+	let mut buf = [0;1024];
+	match stream.read(&mut buf) {
+	    Ok(0) | Err(_) => break,
+	    Ok(num) => std::io::stdout().write(&buf[..num]).unwrap(),
+	};
+    }
+}
+
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let app = App::new(env!("CARGO_PKG_NAME"))
@@ -118,7 +148,17 @@ fn main() -> Result<()> {
                     let dst = arg_iter.next().unwrap();
                     download_file(url, dst);
                 }),
+        )
+        .command(
+            Command::new("bind")
+                .description("Listen on the given port")
+                .usage("<port>")
+                .action(|ctx| {
+                    let port: usize = ctx.args[0].parse().unwrap();
+		    tcp_listener(port);
+                }),
         );
+
     app.run(args);
 
     Ok(())
