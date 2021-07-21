@@ -77,36 +77,7 @@ fn download_file(url: &str, dst: &str) {
     std::io::copy(&mut reader, &mut writer).expect(format!("cant write to file: {}", dst).as_ref());
 }
 
-fn tcp_listener(port: usize) {
-    let socket = TcpListener::bind(format!("0.0.0.0:{}", &port)).unwrap();
-    println!("Listen on 0.0.0.0:{}", &port);
-    let (mut stream, addr) = socket.accept().unwrap();
-    println!("Connection from {}", &addr);
-
-    // start thread to read stdin
-    let mut stream2 = stream.try_clone().unwrap();
-    thread::spawn(move || {
-	loop {
-	    let mut buf = [0;1024];
-	    match std::io::stdin().read(&mut buf) {
-		Ok(0) | Err(_) => break,
-		Ok(num) => stream2.write(&buf[..num]).unwrap(),
-	    };
-	}
-    });
-    // read socket and print to stdout
-    loop {
-	let mut buf = [0;1024];
-	match stream.read(&mut buf) {
-	    Ok(0) | Err(_) => break,
-	    Ok(num) => std::io::stdout().write(&buf[..num]).unwrap(),
-	};
-    }
-}
-
-fn tcp_connect(ip: &str, port: usize) {
-    let mut socket = TcpStream::connect(format!("{}:{}", ip, port)).unwrap();
-
+fn handle_socket(mut socket: TcpStream) {
     // start thread to read stdin
     let mut socket2 = socket.try_clone().unwrap();
     thread::spawn(move || {
@@ -128,8 +99,18 @@ fn tcp_connect(ip: &str, port: usize) {
     }
 }
 
+fn tcp_listener(port: usize) {
+    let socket = TcpListener::bind(format!("0.0.0.0:{}", &port)).unwrap();
+    println!("Listen on 0.0.0.0:{}", &port);
+    let (stream, addr) = socket.accept().unwrap();
+    println!("Connection from {}", &addr);
+    handle_socket(stream);
+}
 
-
+fn tcp_connect(ip: &str, port: usize) {
+    let socket = TcpStream::connect(format!("{}:{}", ip, port)).unwrap();
+    handle_socket(socket);
+}
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
