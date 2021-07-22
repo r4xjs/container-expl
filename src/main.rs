@@ -1,16 +1,16 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
-use seahorse::{App, Command};
+//use seahorse::{App, Command};
 use ureq;
 
-use std::env;
 use std::fs::OpenOptions;
 use std::net::{TcpStream, TcpListener};
 use std::io::{Write, Read};
 use std::str;
 use std::thread;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+mod error;
+use crate::error::Result;
 
 fn print_process_list() -> Result<()> {
     println!("{:<10}{:<10}{:<10}\t{}", "OWNER", "PID", "PPID", "CMDLINE");
@@ -112,71 +112,68 @@ fn tcp_connect(ip: &str, port: usize) {
     handle_socket(socket);
 }
 
-fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
-    let app = App::new(env!("CARGO_PKG_NAME"))
-        .description(env!("CARGO_PKG_DESCRIPTION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .usage(format!("{} [Commands]", args[0]))
-        .command(
-            Command::new("ip")
-                .description("Display network information about the interfaces")
-                .action(|_| {
-                    print_network_interfaces().unwrap();
-                }),
-        )
-        .command(
-            Command::new("ps")
-                .description("Display process information")
-                .action(|_| {
-                    print_process_list().unwrap();
-                }),
-        )
-        .command(
-            Command::new("scan")
-                .description("Scan target IP")
-                .usage("<IP> <StartPort> <EndPort>")
-                .action(|ctx| {
-                    let mut arg_iter = ctx.args.iter().take(3);
-                    let ip = arg_iter.next().unwrap();
-                    let start_port: usize = arg_iter.next().unwrap().parse().unwrap();
-                    let end_port: usize = arg_iter.next().unwrap().parse().unwrap();
-                    print_port_scan(ip, start_port, end_port);
-                }),
-        )
-        .command(
-            Command::new("wget")
-                .description("Download file")
-                .usage("<URL> <Destination File>")
-                .action(|ctx| {
-                    let mut arg_iter = ctx.args.iter().take(2);
-                    let url = arg_iter.next().unwrap();
-                    let dst = arg_iter.next().unwrap();
-                    download_file(url, dst);
-                }),
-        )
-        .command(
-            Command::new("bind")
-                .description("Listen on the given port")
-                .usage("<port>")
-                .action(|ctx| {
-                    let port: usize = ctx.args[0].parse().unwrap();
-		    tcp_listener(port);
-                }),
-        )
-        .command(
-            Command::new("connect")
-                .description("TCP Connect to given IP and port")
-                .usage("<ip> <port>")
-                .action(|ctx| {
-                    let ip = &ctx.args[0];
-                    let port: usize = ctx.args[1].parse().unwrap();
-		    tcp_connect(ip, port);
-                }),
-        );
 
-    app.run(args);
+const HELP: &str = "\
+container-expl
+
+USAGE:
+
+  container-expl <CMD> [OPTIONS]
+
+  CMD:
+    ip          Display network interface infos
+    ps          Display process infos
+    wget        Download file from --url <URL> and
+                save it to --out <FILE>
+    scan        Port scan --ip <IP>. Start at port 
+                --start <PORT> and end at port --end <PORT>
+    bind        Bind --port <PORT> and start listening.
+                Works similar as netcat
+    connect     Connect to --ip <IP> and --port <PORT>
+                Works similar as netcat
+
+  EXAMPLE:
+    container-expl ip
+    container-expl ps
+    container-expl scan --ip 1.1.1.1 --start 80 --end 1000
+    container-expl bind --port 1234
+    container-expl connect --ip 1.1.1.1 --port 1234
+    container-expl wget --url http://localhost:1234/xyz.txt --out f00.txt
+
+";
+
+
+fn main() -> Result<()> {
+    let mut args = pico_args::Arguments::from_env();
+    let cmd = args.subcommand()?;
+
+    if args.contains(["-h", "--help"]) || cmd.is_none() {
+	print!("{}", HELP);
+	return Ok(());
+    }
+    let cmd = cmd.unwrap();
+
+    if cmd == "ip" {
+	print_network_interfaces()?;
+    } else if cmd == "ps" {
+	print_process_list()?;
+    } else if cmd == "wget" {
+	let url: String = args.value_from_str("--url")?;
+	let dst: String  = args.value_from_str("--out")?;
+	download_file(&url, &dst);
+    } else if cmd == "scan" {
+	let ip: String = args.value_from_str("--ip")?;
+	let start: usize = args.value_from_str("--start")?;
+	let end: usize = args.value_from_str("--end")?;
+	print_port_scan(&ip, start, end);
+    } else if cmd == "bind" {
+	let port: usize = args.value_from_str("--port")?;
+	tcp_listener(port);
+    } else if cmd == "connect" {
+	let ip: String = args.value_from_str("--ip")?;
+	let port: usize = args.value_from_str("--port")?;
+	tcp_connect(&ip, port);
+    }
 
     Ok(())
 }
