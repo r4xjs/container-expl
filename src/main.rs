@@ -1,6 +1,6 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
-//use seahorse::{App, Command};
+use anyhow::{Result, Context};
 use ureq;
 
 use std::fs::OpenOptions;
@@ -8,9 +8,6 @@ use std::net::{TcpStream, TcpListener};
 use std::io::{Write, Read};
 use std::str;
 use std::thread;
-
-mod error;
-use crate::error::Result;
 
 fn print_process_list() -> Result<()> {
     println!("{:<10}{:<10}{:<10}\t{}", "OWNER", "PID", "PPID", "CMDLINE");
@@ -49,11 +46,12 @@ fn print_network_interfaces() -> Result<()> {
     Ok(())
 }
 
-fn print_port_scan(ip: &str, start_port: usize, end_port: usize) {
+fn print_port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<()> {
     println!("--------------------\n{}:\n--------------------", ip);
-    for port in port_scan(ip, start_port, end_port).unwrap() {
+    for port in port_scan(ip, start_port, end_port)? {
         println!("{:<15} Open", port);
     }
+    Ok(())
 }
 fn port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>> {
     let mut res = vec![];
@@ -66,20 +64,23 @@ fn port_scan(ip: &str, start_port: usize, end_port: usize) -> Result<Vec<usize>>
     Ok(res)
 }
 
-fn download_file(url: &str, dst: &str) {
-    let resp = ureq::get(url).call().expect(format!("can't open url: {}", url).as_ref());
+fn download_file(url: &str, dst: &str) -> Result<()> {
+    let resp = ureq::get(url).call()
+	.with_context(|| format!("can't open = {}", &url))?;
     let mut reader = resp.into_reader();
     let mut writer = OpenOptions::new()
         .write(true)
         .create(true)
         .open(dst)
-        .expect(format!("cant open file: {}", dst).as_ref());
-    std::io::copy(&mut reader, &mut writer).expect(format!("cant write to file: {}", dst).as_ref());
+	.with_context(|| format!("Can't open file {}", &dst))?;
+    std::io::copy(&mut reader, &mut writer).
+	context("download_file() io error")?;
+    Ok(())
 }
 
-fn handle_socket(mut socket: TcpStream) {
+fn handle_socket(mut socket: TcpStream) -> Result<()> {
     // start thread to read stdin
-    let mut socket2 = socket.try_clone().unwrap();
+    let mut socket2 = socket.try_clone()?;
     thread::spawn(move || {
 	loop {
 	    let mut buf = [0;1024];
@@ -97,19 +98,24 @@ fn handle_socket(mut socket: TcpStream) {
 	    Ok(num) => std::io::stdout().write(&buf[..num]).unwrap(),
 	};
     }
+    Ok(())
 }
 
-fn tcp_listener(port: usize) {
-    let socket = TcpListener::bind(format!("0.0.0.0:{}", &port)).unwrap();
+fn tcp_listener(port: usize) -> Result<()> {
+    let socket = TcpListener::bind(format!("0.0.0.0:{}", &port))
+	.with_context(||format!("can't bind port {}", &port))?;
     println!("Listen on 0.0.0.0:{}", &port);
-    let (stream, addr) = socket.accept().unwrap();
+    let (stream, addr) = socket.accept()?;
     println!("Connection from {}", &addr);
-    handle_socket(stream);
+    handle_socket(stream)?;
+    Ok(())
 }
 
-fn tcp_connect(ip: &str, port: usize) {
-    let socket = TcpStream::connect(format!("{}:{}", ip, port)).unwrap();
-    handle_socket(socket);
+fn tcp_connect(ip: &str, port: usize) -> Result<()> {
+    let socket = TcpStream::connect(format!("{}:{}", ip, port))
+	.with_context(|| format!("can't connect to {}:{}", &ip, &port))?;
+    handle_socket(socket)?;
+    Ok(())
 }
 
 
@@ -160,19 +166,19 @@ fn main() -> Result<()> {
     } else if cmd == "wget" {
 	let url: String = args.value_from_str("--url")?;
 	let dst: String  = args.value_from_str("--out")?;
-	download_file(&url, &dst);
+	download_file(&url, &dst)?;
     } else if cmd == "scan" {
 	let ip: String = args.value_from_str("--ip")?;
 	let start: usize = args.value_from_str("--start")?;
 	let end: usize = args.value_from_str("--end")?;
-	print_port_scan(&ip, start, end);
+	print_port_scan(&ip, start, end)?;
     } else if cmd == "bind" {
 	let port: usize = args.value_from_str("--port")?;
-	tcp_listener(port);
+	tcp_listener(port)?;
     } else if cmd == "connect" {
 	let ip: String = args.value_from_str("--ip")?;
 	let port: usize = args.value_from_str("--port")?;
-	tcp_connect(&ip, port);
+	tcp_connect(&ip, port)?;
     }
 
     Ok(())
