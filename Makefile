@@ -11,9 +11,3 @@ build:
 .PHONY: clippy
 clippy:
 	cargo clippy --release --target $(TARGET) --bin container-expl
-
-.PHONY: release
-release: build
-	chmod 755 $(BIN_PATH)
-	scp $(BIN_PATH) www:$(RELEASE_UPLOAD)
-
