@@ -1,7 +1,6 @@
 use interfaces::{Interface, Kind};
 use procfs::process;
 use anyhow::{Result, Context};
-use ureq;
 
 use std::fs::OpenOptions;
 use std::net::{TcpStream, TcpListener};
@@ -10,11 +9,11 @@ use std::str;
 use std::thread;
 
 fn print_process_list() -> Result<()> {
-    println!("{:<10}{:<10}{:<10}\t{}", "OWNER", "PID", "PPID", "CMDLINE");
+    println!("{:<10}{:<10}{:<10}\tCMDLINE", "OWNER", "PID", "PPID");
     for proc in process::all_processes()? {
         let stat = &proc.stat;
         let cmdline = proc.cmdline()?;
-        if cmdline.len() == 0 {
+        if cmdline.is_empty() {
             continue;
         }
         println!(
